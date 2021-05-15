@@ -1,0 +1,30 @@
+{
+    "name": "clsystems/sl-api-client",
+    "description": "Client library for SkimLinks API.",
+    "type": "library",
+    "version": "0.1.1",
+    "license": "MIT",
+    "keywords": [
+      "clsystems",
+      "skimlinks",
+      "tracking",
+      "ads",
+      "affiliate"
+    ],
+    "authors": [
+        {
+            "name": "Jeroen Guyt",
+            "email": "info@clsystems.nl"
+        }
+    ],
+    "require": {
+      "php": ">=7.3",
+      "ext-curl": "*",
+      "ext-json": "*"
+    },
+    "autoload": {
+      "psr-4": {
+        "CLSystems\\SkimLinks\\": "src/"
+      }
+    }
+}
