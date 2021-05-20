@@ -8,12 +8,6 @@ use function urlencode;
 /**
  * SkimLinks API client library {@link http://developers.skimlinks.com}.
  *
- * API Authentication credentials
- * Client ID :     c03948d94f5b82d7fde5ba26c63e9426
- * Client Secret : 581de99f4783f31e09398b7393700bc3
- * Publisher Id :  190750
- * User Id :       153197
- *
  * <code>
  * ...
  *
@@ -30,7 +24,7 @@ class Client
 	/**
 	 * @var array
 	 */
-	protected $sitesAllowed = [];
+	protected array $sitesAllowed = [];
 
 	/**
 	 * @var Client|null
@@ -38,9 +32,9 @@ class Client
 	protected ?Client $client;
 
 	/**
-	 * @var null
+	 * @var string|null
 	 */
-	protected $dateFormat = null;
+	protected ?string $dateFormat = null;
 
 	/**
 	 * @var string
@@ -98,7 +92,7 @@ class Client
 
 	/**
 	 * Fetch all programs from SkimLinks Merchant API
-	 * @see https://jsapi.apiary.io/apis/skimlinksmerchantapi/reference/0.html
+	 * @see http://developers.skimlinks.com/merchant.html
 	 *
 	 * @param int $siteId
 	 * @param array|null $filters
@@ -110,7 +104,7 @@ class Client
 		$results = [];
 		try
 		{
-			$limit = 100;
+			$limit = 200;
 			$offset = 0;
 			$loop = true;
 			while (true === $loop)
@@ -127,8 +121,12 @@ class Client
 				// &offset=
 				// &sort_by=name
 				// &sort_dir=asc
-				$urlMerchants = $this->apiMerchantUrl . '/v4/publisher/' . $this->publisherId . 'merchants?access_token=' . $this->token . '&limit=' . $limit . '&offset=' .
-					$offset;
+				$urlMerchants = $this->apiMerchantUrl
+					. '/v4/publisher/' . $this->publisherId
+					. '/merchants?access_token=' . $this->token
+					. '&publisher_domain_id=' . $siteId
+					. '&limit=' . $limit
+					. '&offset=' . $offset;
 				if (false === empty($filters))
 				{
 					foreach ($filters as $key => $value)
@@ -137,64 +135,23 @@ class Client
 					}
 				}
 				$merchants = self::callApi($urlMerchants);
-				if (true === isset($merchants[0]['code']) && true === isset($merchants[0]['message']))
+				if (true === isset($merchants['description']))
 				{
 					// Some error occurred
-					throw new Exception('[SkimLinks][getMerchants] ' . $merchants[0]['message']);
+					throw new Exception('[SkimLinks][getMerchants] ' . $merchants['description']);
 				}
-				else if (true === isset($merchants['items']) && true === isset($merchants['total']))
+				else if (true === isset($merchants['merchants']))
 				{
-					foreach ($merchants['items'] as $merchantJson)
+					foreach ($merchants['merchants'] as $merchant)
 					{
-						$obj = [];
-						$obj['cid'] = $merchantJson['id'];
-						$obj['name'] = $merchantJson['name'];
-						$obj['status_id'] = $merchantJson['statusId'];
-						//Possible values: 0: Not Applied, 1: Under Consideration, 2: On-hold while under consideration, 3: Accepted, 4: Ended, 5: Denied, 6: On Hold while Accepted, 7: Final Denied, 8: Written Off
-						switch ($merchantJson['statusId'])
-						{
-							case 0:
-								$obj['status'] = 'Not Applied';
-							break;
-							case 1:
-								$obj['status'] = ' Under Consideration';
-							break;
-							case 2:
-								$obj['status'] = 'On-hold while under consideration';
-							break;
-							case 3:
-								$obj['status'] = 'Accepted';
-							break;
-							case 4:
-								$obj['status'] = 'Ended';
-							break;
-							case 5:
-								$obj['status'] = 'Denied';
-							break;
-							case 6:
-								$obj['status'] = 'On Hold while Accepted';
-							break;
-							case 7:
-								$obj['status'] = 'Final Denied';
-							break;
-							case 8:
-								$obj['status'] = 'Written Off';
-							break;
-							default:
-								$obj['status'] = 'Unknown';
-								echo '[SkimLinks][getProgramList] Merchant status unexpected ' . $merchantJson['statusId'];
-							break;
-						}
-						$obj['launch_date'] = $merchantJson['startDate'];
-						$obj['application_date'] = $merchantJson['applicationDate'];
-						$obj += $merchantJson;
-						$results[] = $obj;
+						$results[$merchant['advertiser_id']] = $merchant;
 					}
-					if ((int)$merchants['total'] <= $offset)
+					if ($merchants['has_more'] === false)
 					{
 						$loop = false;
 					}
 					$offset = (int)($limit + $offset);
+					usleep(1500000); // Max 40 calls per minute per Api key
 				}
 				else
 				{
@@ -212,198 +169,108 @@ class Client
 	}
 
 	/**
-	 * Get program details from TradeDoubler Connect API
-	 * @see https://tradedoubler.docs.apiary.io/#/reference/programs/program/program-detail/200?mc=reference%2Fprograms%2Fprogram%2Fprogram-detail%2F200
+	 * Get offers from SkimLinks API
 	 *
-	 * @param int $programId
-	 * @return array
-	 * @throws Exception
-	 */
-	public function getProgramDetails(int $siteId, int $programId): array
-	{
-		$program = [];
-		try
-		{
-			$urlProgramDetails = $this->apiConnectUrl . '/publisher/programs/detail?sourceId=' . $siteId . '&programId=' . $programId ;
-			$programJson = self::callApi($urlProgramDetails);
-			if (true === isset($programJson['code']) && true === isset($programJson['message']))
-			{
-				// Some error occurred
-				throw new Exception('[SkimLinks][getProgramDetails] ' . $programJson['message']);
-			}
-			else if (false === empty($programJson['id']))
-			{
-				$program = $programJson;
-			}
-			else
-			{
-				echo '[SkimLinks][getProgramDetails] invalid response for program ' . $programId . ': ';
-				var_dump($programJson);
-			}
-		}
-		catch (Exception $exception)
-		{
-			throw new Exception('[SkimLinks][getProgramDetails][Exception] ' . $exception->getMessage());
-		}
-		return $program;
-	}
-
-	/**
-	 * Apply for a program through TradeDoubler Connect API
-	 * @see https://tradedoubler.docs.apiary.io/#/reference/programs/program/apply-to-program/200?mc=reference%2Fprograms%2Fprogram%2Fapply-to-program%2F200
+	 * https://merchants.skimapis.com/v4/publisher/{publisher_id}/offers
+	 * ?access_token=123%3A123456789%3A00112233445566778899aabbccddeeff
+	 * &search=
+	 * &merchant_id=
+	 * &a_id=
+	 * &vertical=
+	 * &country=
+	 * &period=
+	 * &favourite_type=
+	 * &limit=
+	 * &offset=
+	 * &sort_by=
+	 * &sort_dir=asc
 	 *
-	 * @param int $siteId
-	 * @param int $programId
-	 * @return bool
-	 * @throws Exception
-	 */
-	public function applyProgram(int $siteId, int $programId) : bool
-	{
-		try
-		{
-			$urlProgram = $this->apiConnectUrl . '/publisher/programs/apply';
-			$postData = [
-				'sourceId'  => $siteId,
-				'programId' => $programId,
-			];
-			$programJson = self::callApi($urlProgram, true, true, $postData);
-		}
-		catch (Exception $exception)
-		{
-			throw new Exception('[SkimLinks][getProgramDetails][Exception] ' . $exception->getMessage());
-		}
-		return true;
-	}
-
-	/**
-	 * Get ads from SkimLinks API
-	 *
-	 * @see https://tradedoubler.docs.apiary.io/#/reference/ads/list-all-ads/ads/200?mc=reference%2Fads%2Flist-all-ads%2Fads%2F200
-	 *
-	 * @param int $siteId
-	 * @param int $programId
 	 * @param array|null $filters
 	 * @return array
 	 * @throws Exception
 	 */
-	public function getAds(int $siteId, int $programId, array $filters = null): array
+	public function getOffers(array $filters = null): array
 	{
 		$results = [];
 		try
 		{
-			$limit = 100;
+			$limit = 200;
 			$offset = 0;
 			$loop = true;
 			while (true === $loop)
 			{
-				$urlAds = $this->apiConnectUrl . '/publisher/ads?sourceId=' . $siteId . '&programId=' . $programId. '&limit=' . $limit . '&offset=' . $offset;
+				$urlOffers = $this->apiMerchantUrl
+					. '/v4/publisher/' . $this->publisherId
+					. '/offers?access_token=' . $this->token
+					. '&limit=' . $limit
+					. '&offset=' . $offset;
 				if (false === empty($filters))
 				{
 					foreach ($filters as $key => $value)
 					{
-						$urlAds .= '&' . urlencode($key) . '=' . urlencode($value);
+						$urlOffers .= '&' . urlencode($key) . '=' . urlencode($value);
 					}
 				}
-				$ads = self::callApi($urlAds);
-				if (true === isset($ads[0]['code']) && true === isset($ads[0]['message']))
+				$offers = self::callApi($urlOffers);
+				if (true === isset($offers['description']))
 				{
 					// Some error occurred
-					throw new Exception('[SkimLinks][getAds] ' . $ads[0]['message']);
+					throw new Exception('[SkimLinks][getOffers] ' . $offers['description']);
 				}
-				else if (true === isset($ads['items']) && true === isset($ads['total']))
+				else if (true === isset($offers['offers']))
 				{
-					foreach ($ads['items'] as $ad)
+					foreach ($offers['offers'] as $offer)
 					{
-						$results[] = $ad;
+						$results[] = $offer;
 					}
-					if ((int)$ads['total'] <= $offset)
+
+					if ($offers['has_more'] === false)
 					{
 						$loop = false;
 					}
 					$offset = (int)($limit + $offset);
+					usleep(1500000); // Max 40 calls per minute per Api key
 				}
 				else
 				{
-					echo '[SkimLinks][getAds] invalid response ';
-					var_dump($ads);
+					echo '[SkimLinks][getOffers] invalid response ';
+					var_dump($offers);
 					$loop = false;
 				}
 			}
 		}
 		catch (Exception $exception)
 		{
-			throw new Exception('[SkimLinks][getAds][Exception] ' . $exception->getMessage());
+			throw new Exception('[SkimLinks][getOffers][Exception] ' . $exception->getMessage());
 		}
 		return $results;
 	}
 
 	/**
-	 * Fetch vouchers from TradeDoubler Open API
-	 * @see http://dev.tradedoubler.com/vouchers/publisher/#Get_vouchers_service
-	 *
-	 * @param string $token
-	 * @param array|null $filters
-	 * @return array
-	 */
-	public function getVoucherList(string $token, array $filters = null): array {
-
-		$results = [];
-		try
-		{
-			$urlVouchers = $this->apiMerchantUrl . '/1.0/vouchers.json;dateOutputFormat=iso8601?token=' . $token;
-			$vouchers = self::callApi($urlVouchers, false);
-			if (true === isset($vouchers[0]['code']) && true === isset($vouchers[0]['message']))
-			{
-				// Some error occurred
-				throw new Exception('[SkimLinks][getVoucherList] ' . $vouchers[0]['message']);
-			}
-			else if (!empty($vouchers))
-			{
-				foreach ($vouchers as $voucher)
-				{
-					$results[$voucher['id']] = $voucher;
-				}
-			}
-		}
-		catch (Exception $exception)
-		{
-			throw new Exception('[SkimLinks][getVoucherList][Exception] ' . $exception->getMessage());
-		}
-		return $results;
-	}
-
-	/**
-	 * @return string
+	 * @return void
 	 * @throws Exception
 	 */
-	private function getToken(): string
+	private function getToken(): void
 	{
 		try
 		{
 			if (false === empty($this->token))
 			{
-				return $this->token;
+				return;
 			}
 			// Retrieve token
 			$loginUrl = $this->apiAuthUrl . '/access_token';
 			$params = [
-				'grant_type'    => $this->grantType,
 				'client_id'     => $this->clientId,
 				'client_secret' => $this->clientSecret,
+				'grant_type'    => $this->grantType,
 			];
-
-			$p = [];
-			foreach ($params as $key => $value)
-			{
-				$p[] = $key . '=' . urlencode($value);
-			}
-			$post_params = implode('&', $p);
 
 			$ch = curl_init();
 
 			curl_setopt($ch, CURLOPT_URL, $loginUrl);
-			curl_setopt($ch, CURLOPT_POST, true);
-			curl_setopt($ch, CURLOPT_POSTFIELDS, $post_params);
+			curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
+			curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($params));
 			curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
 			curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 			curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -414,26 +281,21 @@ class Client
 			$response = json_decode($curl_results, false, 512, JSON_THROW_ON_ERROR);
 			if ($response)
 			{
-				if (isset($response->error))
+				if (isset($response->description))
 				{
-					if (isset($response->error_description))
-					{
-						throw new Exception('[SkimLinks][getToken] ' . $response->error_description);
-					}
+					throw new Exception('[SkimLinks][getToken] FAILED: ' . $response->description);
 				}
 				if (isset($response->access_token))
 				{
 					$this->token = $response->access_token;
 				}
-
 			}
-			return $this->token;
+			return;
 		}
 		catch (Exception $exception)
 		{
-			throw new Exception('[SkimLinks][getToken][Exception] ' . $exception->getMessage());
+			throw new Exception($exception->getMessage());
 		}
-
 	}
 
 	/**
