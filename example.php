@@ -4,56 +4,32 @@ require_once('src/Client.php');
 
 use CLSystems\SkimLinks\Client;
 
-$client = new Client('44D41DD809F1C630E9A99E6A8F244E963012FDA2');
-$categoryTrees = $client->getServiceData('advertisers.products.categories', array('language' => 'en'));
+$clientId     = 'c03948d94f5b82d7fde5ba26c63e9426';
+$clientSecret = '581de99f4783f31e09398b7393700bc3';
+$publisherId  = 190750;
 
+// Approved sites
+$sites = [
+	1661924 => 'example.com',
+];
 
-function renderCategoryTrees(array $categories, $level = 0) {
-  $html = "<ul id=\"level-$level\">";
+$api = (new Client())->login($clientId, $clientSecret, $publisherId);
+foreach ($sites as $siteId => $siteName)
+{
+    print_r('Fetching programs for ' . $siteName);
+    $params = [
+        'publisher_domain_id' => $siteId,
+    ];
 
-  foreach ($categories as $category) {
-    if (isset($category['subCategories'])) {
-      $html .= renderCategoryTrees($category['subCategories'], ++$level);
-    } else {
-      $html .= "<li><p>{$category['name']} - <span>({$category['productCount']})</span></p></li>";
+    $advertisers = $api->getMerchants($siteId, $params);
+    print_r('ADVERTISERS OK - Got ' . count($advertisers) . ' advertisers');
+    foreach ($advertisers as $advertiser)
+    {
+        // Build the data array to process
+        if (!isset($processData[$advertiser['merchant_id']]))
+        {
+            print_r('Adding  ' . $advertiser['name'] . ' (' . $advertiser['merchant_id'] . ')');
+            $processData[$advertiser['merchant_id']] = $advertiser;
+        }
     }
-  }
-
-  $html .= '</ul>';
-
-  return $html;
 }
-
-?>
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
-    <title>SkimLinks API</title>
-
-    <!-- Latest compiled and minified CSS -->
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
-
-    <!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
-    <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
-    <!--[if lt IE 9]>
-      <script src="https://oss.maxcdn.com/html5shiv/3.7.2/html5shiv.min.js"></script>
-      <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
-    <![endif]-->
-  </head>
-  <body>
-
-    <div class="container">
-      <?php if ($categoryTrees): ?>
-        <?php echo renderCategoryTrees($categoryTrees['categoryTrees']); ?>
-      <?php endif; ?>
-    </div>
-
-    <!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
-    <!-- Latest compiled and minified JavaScript -->
-    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js" integrity="sha384-0mSbJDEHialfmuBBQP6A4Qrprq5OVfW37PRR3j5ELqxss1yVqOtnepnHVP9aJ7xS" crossorigin="anonymous"></script>
-  </body>
-</html>
