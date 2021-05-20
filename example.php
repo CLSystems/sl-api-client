@@ -16,20 +16,20 @@ $sites = [
 $api = (new Client())->login($clientId, $clientSecret, $publisherId);
 foreach ($sites as $siteId => $siteName)
 {
-    print_r('Fetching programs for ' . $siteName);
-    $params = [
-        'publisher_domain_id' => $siteId,
-    ];
+	print_r('Fetching programs for ' . $siteName);
+	$params = [
+		'publisher_domain_id' => $siteId,
+	];
 
-    $advertisers = $api->getMerchants($siteId, $params);
-    print_r('ADVERTISERS OK - Got ' . count($advertisers) . ' advertisers');
-    foreach ($advertisers as $advertiser)
-    {
-        // Build the data array to process
-        if (!isset($processData[$advertiser['merchant_id']]))
-        {
-            print_r('Adding  ' . $advertiser['name'] . ' (' . $advertiser['merchant_id'] . ')');
-            $processData[$advertiser['merchant_id']] = $advertiser;
-        }
-    }
+	$advertisers = $api->getMerchants($siteId, $params);
+	print_r('ADVERTISERS OK - Got ' . count($advertisers) . ' advertisers');
+	foreach ($advertisers as $advertiser)
+	{
+		// Build the data array to process
+		if (!isset($processData[$advertiser['merchant_id']]))
+		{
+			print_r('Adding  ' . $advertiser['name'] . ' (' . $advertiser['merchant_id'] . ')');
+			$processData[$advertiser['merchant_id']] = $advertiser;
+		}
+	}
 }
